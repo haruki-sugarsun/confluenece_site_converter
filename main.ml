@@ -39,6 +39,10 @@ let read_from_file filename = (*TODO: have a better typing. *)
   let s = really_input_string ic (in_channel_length ic) in
   close_in ic;
   s;;
+let copy_file from_filename to_filename = (*TODO: have a better typing. *)
+  let body = read_from_file from_filename in
+  write_to_file body to_filename;;
+
 
 let at_mark_regexp = Str.regexp "@";;
 let basic_auth_pair conf =
@@ -59,6 +63,55 @@ let build_jekyll_front_matter_string json = (* TODO: Implement *)
    "title: \"" ^ title ^ "\"\n" ^
    "---\n");;
 
+(* Easy Tools *)
+(* https://github.com/mirage/ocaml-cohttp#dealing-with-redirects *)
+let rec http_get_and_follow ~max_redirects uri =
+  let open Lwt.Syntax in
+  let* ans = Cohttp_lwt_unix.Client.get uri in
+  follow_redirect ~max_redirects uri ans
+
+and follow_redirect ~max_redirects request_uri (response, body) =
+  let open Lwt.Syntax in
+  let status = Cohttp.Response.status response in
+  (* The unconsumed body would otherwise leak memory *)
+  let* () =
+    if Poly.(status <> `OK) then Cohttp_lwt.Body.drain_body body else Lwt.return_unit
+  in
+  match status with
+  | `OK -> Lwt.return (response, body)
+  | `Permanent_redirect | `Moved_permanently ->
+      handle_redirect ~permanent:true ~max_redirects request_uri response
+  | `Found | `Temporary_redirect ->
+      handle_redirect ~permanent:false ~max_redirects request_uri response
+  | `Not_found | `Gone -> Lwt.fail_with "Not found"
+  | status ->
+      Lwt.fail_with
+        (Printf.sprintf "Unhandled status: %s"
+           (Cohttp.Code.string_of_status status))
+
+and handle_redirect ~permanent ~max_redirects request_uri response =
+  if Poly.(max_redirects <= 0) then Lwt.fail_with "Too many redirects"
+  else
+    let headers = Cohttp.Response.headers response in
+    let location = Cohttp.Header.get headers "location" in
+    match location with
+    | None -> Lwt.fail_with "Redirection without Location header"
+    | Some url ->
+        let open Lwt.Syntax in
+        let uri = Uri.of_string url in
+        let* () =
+          if permanent then
+            (* TODO: replace with Logger impl *)
+            printf "Permanent redirection from %s to %s"
+                  (Uri.to_string request_uri)
+                  url
+          ;
+          Lwt.return_unit
+        in
+        http_get_and_follow uri ~max_redirects:(max_redirects - 1)
+
+
+(* HTML processing *)
 let simple_html_trimmer html_string =
   let node = Soup.parse html_string in
   Soup.pretty_print node;;
@@ -93,9 +146,10 @@ let generate_inner_site_link page_id =
 
 (* download the file to _CACHE_DIR_/_PAGE_ID_/_FILENAME_ *)
 (* TODO: Consider pack the common parameters into a context record type to simplify. *)
-let fixme_load_resource conf page_id uri filename = (* TODO: Implement *)
+let download_resource conf page_id uri filename = (* TODO: Implement *)
   (* Handle cache flag properly. *)
-  let body = Client.get uri >>= fun (resp, body) ->
+  let uri = Uri.with_userinfo uri (Some (basic_auth_pair conf)) in
+  let body = http_get_and_follow ~max_redirects:1 uri >>= fun (resp, body) ->
     let code = resp |> Response.status |> Code.code_of_status in
     Printf.eprintf "Response code: %d\n" code;
     Printf.eprintf "Headers: %s\n" (resp |> Response.headers |> Header.to_string);
@@ -132,21 +186,16 @@ let img_attr_processor conf page_id node =
       printf "Img src:%s\n" resource_uri_string;
       printf "filename:%s\n" filename;
 
-      fixme_load_resource conf page_id resource_uri filename;
-
-
+      download_resource conf page_id resource_uri filename;
+      (* Make the attachment URL pattern configurable by command line. *)
+      copy_file
+        (conf.local_cache_dir ^ "/" ^ page_id ^ "/" ^ filename)
+        ("./c_attachments/" ^ page_id ^ "/" ^ filename);
+      let new_src = "/c_attachments/" ^ page_id ^ "/" ^ filename in
       Soup.fold_attributes (fun _ k v ->
         printf "Attr:%s=%s\n" k v;
-        if Poly.(k = "src") then (
-          (* download the file to _CACHE_DIR_/_PAGE_ID_/_FILENAME_
-            and copy to /c/_PAGE_PATH_/_FILENAME_ *)
-          let new_src = v in
-          Soup.set_attribute "src" new_src;
-          printf "Img src rewritten2 to :%s\n" new_src
-        )
-        else
-          (* TODO: Implement and replace with attribute dropper with allowlist. *)
-          Soup.delete_attribute k node) () node
+        Soup.delete_attribute k node) () node;
+      Soup.set_attribute "src" new_src node;
     )
     | _, _->
       printf "Img src or filename missing.\n";
