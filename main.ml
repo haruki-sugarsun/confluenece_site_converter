@@ -89,7 +89,10 @@ let simple_html_attr_dropper html_string =
 
 let generate_inner_site_link page_id =
   (* TODO: Implement when we implement URL generation with title. *)
-  "/c/" ^ page_id
+  "/c/" ^ page_id;;
+
+let fixme_load_resource url_str = () (* TODO: Implement *)
+
 let a_attr_processor node =
   Soup.fold_attributes (fun _ k v ->
     printf "Attr:%s=%s\n" k v;
@@ -100,7 +103,24 @@ let a_attr_processor node =
     if Poly.(k = "href") then
       ()
     else
-      Soup.delete_attribute k node) () node
+      Soup.delete_attribute k node) () node;;
+(* img tag processor *)
+(* Here we just use `src` attr. TODO: Consider handling the visible size? *)
+let img_attr_processor node =
+  Soup.fold_attributes (fun _ k v ->
+    printf "Attr:%s=%s\n" k v;
+    if Poly.(k = "src") then (
+      (* download the file to _CACHE_DIR_/_PAGE_ID_/_FILENAME_
+        and copy to /c/_PAGE_PATH_/_FILENAME_ *)
+      fixme_load_resource v;
+      let new_src = v in
+      Soup.set_attribute "src" new_src;
+      printf "Img src rewritten to :%s\n" new_src
+    )
+    else
+      Soup.delete_attribute k node) () node;;
+
+(* Entrypoint for a whole `document` processing *)
 let html_attr_processer html_string =
   let node = Soup.parse html_string in
   printf "before: %s\n" (Soup.pretty_print node);
@@ -110,6 +130,7 @@ let html_attr_processer html_string =
     printf "Tag name:%s\n" (Soup.name n);
     match Soup.name n with
       | "a" -> a_attr_processor n
+      | "img" -> img_attr_processor n
       | _ ->
         Soup.fold_attributes (fun _ k v ->
           if Poly.(k = "id") then
