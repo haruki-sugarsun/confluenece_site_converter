@@ -188,6 +188,7 @@ let img_attr_processor conf page_id node =
 
       download_resource conf page_id resource_uri filename;
       (* Make the attachment URL pattern configurable by command line. *)
+      Core.Unix.mkdir_p ("./c_attachments/" ^ page_id ^ "/");
       copy_file
         (conf.local_cache_dir ^ "/" ^ page_id ^ "/" ^ filename)
         ("./c_attachments/" ^ page_id ^ "/" ^ filename);
