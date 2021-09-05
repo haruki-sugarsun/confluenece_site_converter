@@ -17,14 +17,14 @@ type configuration = {
   confluence_user: string;
   confluence_password: string;  (* Replace or Implement environment variable support. *)
 
-  (* Page structure options *)
+  (* Page structure variables *)
   root_page_id: string;
   sleep_duration_per_fetch: int;
 
-  (* Behavior options *)
+  (* Behavior varibles *)
   use_cache: bool;
 
-  (* Local filesytem options *)
+  (* Local filesytem variables *)
   local_cache_dir: string;
   local_output_dir: string;
 }
@@ -91,7 +91,22 @@ let generate_inner_site_link page_id =
   (* TODO: Implement when we implement URL generation with title. *)
   "/c/" ^ page_id;;
 
-let fixme_load_resource url_str = () (* TODO: Implement *)
+(* download the file to _CACHE_DIR_/_PAGE_ID_/_FILENAME_ *)
+(* TODO: Consider pack the common parameters into a context record type to simplify. *)
+let fixme_load_resource conf page_id uri filename = (* TODO: Implement *)
+  (* Handle cache flag properly. *)
+  let body = Client.get uri >>= fun (resp, body) ->
+    let code = resp |> Response.status |> Code.code_of_status in
+    Printf.eprintf "Response code: %d\n" code;
+    Printf.eprintf "Headers: %s\n" (resp |> Response.headers |> Header.to_string);
+    body |> Cohttp_lwt.Body.to_string >|= fun body ->
+    Printf.eprintf "Body of length: %d\n" (String.length body);
+    body
+  in
+  let body = Lwt_main.run body in (* We can eagarly parse it here? *)
+  Core.Unix.mkdir_p (conf.local_cache_dir ^ "/" ^ page_id ^ "/");
+  write_to_file body (conf.local_cache_dir ^ "/" ^ page_id ^ "/" ^ filename);
+  body
 
 let a_attr_processor node =
   Soup.fold_attributes (fun _ k v ->
@@ -104,24 +119,42 @@ let a_attr_processor node =
       ()
     else
       Soup.delete_attribute k node) () node;;
+
 (* img tag processor *)
 (* Here we just use `src` attr. TODO: Consider handling the visible size? *)
-let img_attr_processor node =
-  Soup.fold_attributes (fun _ k v ->
-    printf "Attr:%s=%s\n" k v;
-    if Poly.(k = "src") then (
-      (* download the file to _CACHE_DIR_/_PAGE_ID_/_FILENAME_
-        and copy to /c/_PAGE_PATH_/_FILENAME_ *)
-      fixme_load_resource v;
-      let new_src = v in
-      Soup.set_attribute "src" new_src;
-      printf "Img src rewritten to :%s\n" new_src
+let img_attr_processor conf page_id node =
+  let resource_uri_opt = Soup.attribute "src" node in
+  let filename_opt = Soup.attribute "data-linked-resource-default-alias" node in
+  printf "Img src:%s\n" (Option.value ~default:"" resource_uri_opt);
+  match resource_uri_opt, filename_opt with
+    | Some(resource_uri_string), Some(filename) -> (
+      let resource_uri = Uri.of_string resource_uri_string in
+      printf "Img src:%s\n" resource_uri_string;
+      printf "filename:%s\n" filename;
+
+      fixme_load_resource conf page_id resource_uri filename;
+
+
+      Soup.fold_attributes (fun _ k v ->
+        printf "Attr:%s=%s\n" k v;
+        if Poly.(k = "src") then (
+          (* download the file to _CACHE_DIR_/_PAGE_ID_/_FILENAME_
+            and copy to /c/_PAGE_PATH_/_FILENAME_ *)
+          let new_src = v in
+          Soup.set_attribute "src" new_src;
+          printf "Img src rewritten2 to :%s\n" new_src
+        )
+        else
+          (* TODO: Implement and replace with attribute dropper with allowlist. *)
+          Soup.delete_attribute k node) () node
     )
-    else
-      Soup.delete_attribute k node) () node;;
+    | _, _->
+      printf "Img src or filename missing.\n";
+      ()
+;;
 
 (* Entrypoint for a whole `document` processing *)
-let html_attr_processer html_string =
+let html_attr_processer conf page_id html_string =
   let node = Soup.parse html_string in
   printf "before: %s\n" (Soup.pretty_print node);
   Soup.select "*" node |>
@@ -130,7 +163,7 @@ let html_attr_processer html_string =
     printf "Tag name:%s\n" (Soup.name n);
     match Soup.name n with
       | "a" -> a_attr_processor n
-      | "img" -> img_attr_processor n
+      | "img" -> img_attr_processor conf page_id n
       | _ ->
         Soup.fold_attributes (fun _ k v ->
           if Poly.(k = "id") then
@@ -181,7 +214,7 @@ and process_content conf page_id body =
   let body_view = json |> member "body" |> member "view" |> member "value" |> to_string in
 
   let jekyll_front_matter = build_jekyll_front_matter_string json in
-  write_to_file (jekyll_front_matter ^ (html_attr_processer body_view)) (conf.local_output_dir ^ "/" ^ page_id ^ ".html");
+  write_to_file (jekyll_front_matter ^ (html_attr_processer conf page_id body_view)) (conf.local_output_dir ^ "/" ^ page_id ^ ".html");
 
   (* List the children *)
   let pages = json |> member "children" |> member "page" |> member "results" in
