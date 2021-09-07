@@ -49,18 +49,22 @@ let basic_auth_pair conf =
   let encoded_user = Str.global_replace at_mark_regexp "%40" conf.confluence_user in
   String.concat ~sep:":" [encoded_user; conf.confluence_password]
 
+(* https://developer.atlassian.com/cloud/confluence/rest/api-group-content/#api-wiki-rest-api-content-id-get *)
 let build_uri_of_page_id conf page_id = 
   let user_token_pair_str = basic_auth_pair conf in
   Uri.of_string (
    String.concat ["https://"; user_token_pair_str; "@"; conf.confluence_domain; "/wiki/rest/api/content/";
                   page_id;
-                  "?expand=body,body.editor,body.view,children.page,version,ancestors"]);;
+                  "?expand=body.view,children.page,history.lastUpdated,version,ancestors"]);;
 let build_jekyll_front_matter_string json = (* TODO: Implement *)
   let open Yojson.Safe.Util in (* local open *)
   let title = json |> member "title" |> to_string in
+  let last_updated = json |> member "history" |> member "lastUpdated" |> member "when" |> to_string in
+  printf "last_updated: %s\n" last_updated;
   ("---\n" ^
    "layout: single\n" ^
    "title: \"" ^ title ^ "\"\n" ^
+   "date: \"" ^ last_updated ^ "\"\n" ^
    "---\n");;
 
 (* Easy Tools *)
