@@ -47,9 +47,10 @@ jobs:
       - run: opam install --yes cohttp-lwt-unix cohttp-async lambdasoup ocamlfind yojson lwt_ssl
 
       # BUILD
-      - run: |
-        eval $(opam env)
-        make
+      - name: build
+        run: |
+          eval $(opam env)
+          make
 
       # Upload the last artifact.
       - uses: actions/upload-artifact@v2
