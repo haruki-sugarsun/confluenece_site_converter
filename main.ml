@@ -147,20 +147,21 @@ let generate_inner_site_link page_id =
 (* download the file to _CACHE_DIR_/_PAGE_ID_/_FILENAME_ *)
 (* TODO: Consider pack the common parameters into a context record type to simplify. *)
 let download_resource conf page_id uri filename = (* TODO: Implement *)
-  (* Handle cache flag properly. *)
-  let uri = Uri.with_userinfo uri (Some (basic_auth_pair conf)) in
-  let body = http_get_and_follow ~max_redirects:1 uri >>= fun (resp, body) ->
-    let code = resp |> Response.status |> Code.code_of_status in
-    Printf.eprintf "Response code: %d\n" code;
-    Printf.eprintf "Headers: %s\n" (resp |> Response.headers |> Header.to_string);
-    body |> Cohttp_lwt.Body.to_string >|= fun body ->
-    Printf.eprintf "Body of length: %d\n" (String.length body);
-    body
-  in
-  let body = Lwt_main.run body in (* We can eagarly parse it here? *)
-  Core.Unix.mkdir_p (conf.local_cache_dir ^ "/" ^ page_id ^ "/");
-  write_to_file body (conf.local_cache_dir ^ "/" ^ page_id ^ "/" ^ filename);
-  body
+  if not conf.use_cache then begin
+    let uri = Uri.with_userinfo uri (Some (basic_auth_pair conf)) in
+    let body = http_get_and_follow ~max_redirects:1 uri >>= fun (resp, body) ->
+      let code = resp |> Response.status |> Code.code_of_status in
+      Printf.eprintf "Response code: %d\n" code;
+      Printf.eprintf "Headers: %s\n" (resp |> Response.headers |> Header.to_string);
+      body |> Cohttp_lwt.Body.to_string >|= fun body ->
+      Printf.eprintf "Body of length: %d\n" (String.length body);
+      body
+    in
+    let body = Lwt_main.run body in (* We can eagarly parse it here? *)
+    Core.Unix.mkdir_p (conf.local_cache_dir ^ "/" ^ page_id ^ "/");
+    write_to_file body (conf.local_cache_dir ^ "/" ^ page_id ^ "/" ^ filename);
+  end;
+  ();;
 
 let a_attr_processor node =
   Soup.fold_attributes (fun _ k v ->
