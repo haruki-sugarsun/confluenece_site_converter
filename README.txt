@@ -7,6 +7,8 @@ Confluence Site Converter
 
 ## API dependency
 API simply following https://developer.atlassian.com/cloud/confluence/basic-auth-for-rest-apis/
+and use https://developer.atlassian.com/cloud/confluence/rest/api-group-content/#api-wiki-rest-api-content-id-get
+to fetch content.
 
 ## Used libraries
 * <https://github.com/mirage/ocaml-cohttp>

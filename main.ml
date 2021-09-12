@@ -55,16 +55,26 @@ let build_uri_of_page_id conf page_id =
   Uri.of_string (
    String.concat ["https://"; user_token_pair_str; "@"; conf.confluence_domain; "/wiki/rest/api/content/";
                   page_id;
-                  "?expand=body.view,children.page,history.lastUpdated,version,ancestors"]);;
-let build_jekyll_front_matter_string json = (* TODO: Implement *)
+                  "?expand=body.view,children.page,history.lastUpdated,version,ancestors,metadata.labels"]);;
+let build_jekyll_front_matter_string json = (* TODO: Better Error Handling *)
   let open Yojson.Safe.Util in (* local open *)
   let title = json |> member "title" |> to_string in
   let last_updated = json |> member "history" |> member "lastUpdated" |> member "when" |> to_string in
   printf "last_updated: %s\n" last_updated;
+  let label_objs = json |> member "metadata" |> member "labels" |>
+    member "results" |> to_list in
+  let labels = List.map label_objs (member "name") |> fun l -> List.map l to_string in
   ("---\n" ^
    "layout: single\n" ^
    "title: \"" ^ title ^ "\"\n" ^
    "date: \"" ^ last_updated ^ "\"\n" ^
+   (* Labels are `tags` in Jekyll. *)
+   (match List.hd labels with
+      | Some _ ->
+        printf "labels: %s" (List.hd_exn labels);
+        "tags:\n  - " ^ (String.concat ~sep:"\n  - " labels) ^ "\n"
+      | None -> ""
+   ) ^
    "---\n");;
 
 (* Easy Tools *)
