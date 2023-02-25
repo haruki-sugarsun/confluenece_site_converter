@@ -6,7 +6,7 @@ open Cohttp_lwt_unix
 open Soup
 open Yojson
 
-(* Configurations. *)
+(* Types and Configurations. *)
 type run_mode =
   | PROCESS_TREE of string (* root page ID *)
   | PROCESS_ONE of string (* target page ID *)
@@ -34,7 +34,17 @@ type configuration = {
   local_output_dir : string;
 }
 
-(* Utils *)
+(* Intermedium Data *)
+type fetch_result = { page_id : string (* target ID *) }
+type analyze_result = { page_id : string (* target ID *) }
+type convert_result = { page_id : string (* target ID *) }
+type process_result = { page_id : string (* target ID *) }
+
+let pp_fetch_result fmt r = Format.fprintf fmt "fetch_result{%s}" ""
+let pp_convert_result fmt r = Format.fprintf fmt "convert_result{%s}" ""
+let pp_process_result fmt r = Format.fprintf fmt "process_result{%s}" ""
+
+(* Utils for General *)
 let write_to_file body filename =
   (*TODO: have a better typing. *)
   let oc = open_out filename in
@@ -56,6 +66,7 @@ let copy_file from_filename to_filename =
 
 let at_mark_regexp = Str.regexp "@"
 
+(* Utils for fetching phase. *)
 let basic_auth_pair conf =
   let encoded_user =
     Str.global_replace at_mark_regexp "%40" conf.confluence_user
@@ -164,6 +175,7 @@ and handle_redirect ~permanent ~max_redirects request_uri response =
         in
         http_get_and_follow uri ~max_redirects:(max_redirects - 1)
 
+(* Utils for convert phase. *)
 (* HTML processing *)
 let simple_html_trimmer html_string =
   let node = Soup.parse html_string in
@@ -278,7 +290,22 @@ let html_attr_processer conf page_id html_string =
   printf " after: %s\n" (Soup.pretty_print node);
   Soup.pretty_print node
 
-(* TRAVERSING recursively. Fetching all the pages under the root. *)
+(* Fetching phase implementations *)
+let fetch_one_page conf page_id : fetch_result =
+  (* TODO: implement. *)
+  { page_id }
+
+(* Analyzing phase implementations *)
+let analyse_one_page conf page_id : analyze_result =
+  (* TODO: implement. *)
+  { page_id }
+
+(* Converting phase implementations *)
+let convert_one_page conf page_id : convert_result =
+  (* TODO: implement. *)
+  { page_id }
+
+(* (Old) DFS TRAVERSING implementation: process recursively. Fetching all the pages under the root. *)
 (* TODO: Have the metadata management. *)
 let fetch_page_content conf page_id =
   (* TODO: Replace with direct usage of fetch_one_page. *)
@@ -338,25 +365,22 @@ and process_content conf page_id body =
       Printf.printf "stepping in to child:%s\n" child_page_id;
       fetch_pages_tree conf child_page_id);
   () (* XXX *)
-  ;;
 
 (*
   TODO: Redefine the steps and implement.
-  process = fetch + convert
-  fetch id = content fecth and store in cache
-  convert = convert from cahce and produce in output
+  process = fetch + analyze + convert
+    fetch = content fecth and store in cache
+    analyze = analyze the fetched content and return metadata, including children page IDs.
+    convert = convert from cahce and produce in output
 *)
-let process_one_page =
-  ();; (* TODO: Implement. *)
-
-
-(*
-  TODO: Redefine the steps and implement.
-  process = fetch + convert
-  fetch id = content fecth and store in cache
-  convert = convert from cahce and produce in output
-*)
-let process_one_page = ()
+(* Composed Processing phases implementations *)
+let process_one_page conf page_id : process_result =
+  let fetch_result = fetch_one_page conf page_id in
+  let convert_result = convert_one_page conf page_id in
+  printf "fetch_result = %a. convert_result = %a\n" pp_fetch_result fetch_result
+    pp_convert_result convert_result;
+  (* TODO: implement. *)
+  { page_id }
 
 (* TODO: Implement. *)
 
@@ -374,7 +398,10 @@ let main config =
       printf "   *****   START Process Tree mode!\n";
       fetch_pages_tree config config.root_page_id
   | PROCESS_ONE target ->
-      printf "   *****   START Process Tree mode!\n" (* TODO: Implement. *));
+      printf "   *****   START Process One mode!\n";
+      let result = process_one_page config target in
+      printf "process_result = %a\n" pp_process_result result
+      (* TODO: Implement. *));
   printf "   *****   FINISHED!\n"
 
 (* Re-process the remaining data? *)
