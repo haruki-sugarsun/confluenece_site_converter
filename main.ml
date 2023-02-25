@@ -338,6 +338,17 @@ and process_content conf page_id body =
       Printf.printf "stepping in to child:%s\n" child_page_id;
       fetch_pages_tree conf child_page_id);
   () (* XXX *)
+  ;;
+
+(*
+  TODO: Redefine the steps and implement.
+  process = fetch + convert
+  fetch id = content fecth and store in cache
+  convert = convert from cahce and produce in output
+*)
+let process_one_page =
+  ();; (* TODO: Implement. *)
+
 
 (*
   TODO: Redefine the steps and implement.
