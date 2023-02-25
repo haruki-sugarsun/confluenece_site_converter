@@ -1,6 +1,6 @@
 open Core
 open Printf
-open Formatter
+open Format
 open Bool
 open Lwt
 open Cohttp
@@ -11,6 +11,15 @@ open Core.Command
 open Str
 
 (* Configurations. *)
+type run_mode =
+  | PROCESS_TREE of string (* root page ID *)
+  | PROCESS_ONE of string  (* target page ID *)
+let pp_run_mode fmt m =
+  match m with
+  | PROCESS_TREE(root) -> Format.fprintf fmt "PROCESS_TREE(%s)" root
+  | PROCESS_ONE(target) -> Format.fprintf fmt "PROCESS_ONE(%s)" target
+;;
+
 type configuration = {
   (* Basic auth pair for REST API *)
   confluence_domain: string;
@@ -18,10 +27,11 @@ type configuration = {
   confluence_password: string;  (* Replace or Implement environment variable support. *)
 
   (* Page structure variables *)
-  root_page_id: string;
-  sleep_duration_per_fetch: int;
+  root_page_id: string; (* TODO: Deprecate in favor of `run_mode`. *)
+  run_mode: run_mode;
 
   (* Behavior varibles *)
+  sleep_duration_per_fetch: int;
   use_cache: bool;
 
   (* Local filesytem variables *)
@@ -290,6 +300,17 @@ and process_content conf page_id body =
     fetch_pages_tree conf child_page_id
   );
   () (* XXX *)
+  ;;
+
+(*
+  TODO: Redefine the steps and implement.
+  process = fetch + convert
+  fetch id = content fecth and store in cache
+  convert = convert from cahce and produce in output
+*)
+let process_one_page =
+  ();; (* TODO: Implement. *)
+
 
 (*
 - body.editor,
@@ -299,7 +320,16 @@ and process_content conf page_id body =
 - ,body.styled_view
 *)
 let main config = (* TODO: has params as confuguration? *)
-  fetch_pages_tree config config.root_page_id;;
+  match config.run_mode with
+  | PROCESS_TREE(root_id) -> (
+    printf "   *****   START Process Tree mode!\n";
+    fetch_pages_tree config config.root_page_id
+  )
+  | PROCESS_ONE(target) -> (
+    printf "   *****   START Process Tree mode!\n";
+    (* TODO: Implement. *)
+  );
+  printf "   *****   FINISHED!\n";;
   (* Re-process the remaining data? *)
   (* TODO: Store the execution metadata? *)
 
@@ -311,19 +341,25 @@ let () =
       and confluence_user = flag ~doc:"user" "--user" (required string)
       and confluence_password = flag ~doc:"password" "--password" (required string)
       and root_page_id = flag ~doc:"Page ID of the root" "--root-page-id" (required string)
-      and sleep_duration_per_fetch = flag ~doc:"Page ID of the root" "--sleep" (required int)
-      and use_cache = flag ~doc:"Page ID of the root" "--cache" (required bool)
-      and local_cache_dir = flag ~doc:"Page ID of the root" "--cache-dir" (required string)
-      and local_output_dir = flag ~doc:"Page ID of the root" "--output-dir" (required string)
+      and process_one_target_id = flag ~doc:"TODO: write" "--process-one-target-id" (required string)
+      and sleep_duration_per_fetch = flag ~doc:"TODO: write" "--sleep" (required int)
+      and use_cache = flag ~doc:"TODO: write" "--cache" (required bool)
+      and local_cache_dir = flag ~doc:"TODO: write" "--cache-dir" (required string)
+      and local_output_dir = flag ~doc:"TODO: write" "--output-dir" (required string)
       in
       fun () ->
         (* Build a configuration *)
+        (* Printf.printf "process_one_target_id %s\n" process_one_target_id ; *)
+        let run_mode = match process_one_target_id with
+          | "-" -> PROCESS_TREE root_page_id
+          | _ -> PROCESS_ONE process_one_target_id
+        in
         let c = {
           confluence_domain: string;
           confluence_user: string;
           confluence_password: string;
           root_page_id: string;
-
+          run_mode: run_mode;
           sleep_duration_per_fetch: int;
           use_cache: bool;
           local_cache_dir: string;
@@ -336,6 +372,7 @@ let () =
         printf "  confluence_password: *** (masked)\n";
         printf "  root_page_id: %s\n" c.root_page_id;
         printf "  sleep_duration_per_fetch: %d\n" c.sleep_duration_per_fetch;
+        printf "  run_mode: %a\n" pp_run_mode c.run_mode;
         printf "  use_cache: %b\n" c.use_cache;
         printf "  local_cache_dir: %s\n" c.local_cache_dir;
         printf "  local_output_dir: %s\n" c.local_output_dir;
