@@ -35,14 +35,33 @@ type configuration = {
 }
 
 (* Intermedium Data *)
-type fetch_result = { page_id : string (* target ID *) }
-type analyze_result = { page_id : string (* target ID *) }
+type fetch_result = { page_id : string; (* target ID *) content : string }
+
+type analyze_result = {
+  page_id : string; (* target ID *)
+  parsed_content : Yojson.Safe.t; (* TODO: Replace with JSON? *)
+  children_ids : string list;
+}
+
 type convert_result = { page_id : string (* target ID *) }
 type process_result = { page_id : string (* target ID *) }
 
-let pp_fetch_result fmt r = Format.fprintf fmt "fetch_result{%s}" ""
-let pp_convert_result fmt r = Format.fprintf fmt "convert_result{%s}" ""
-let pp_process_result fmt r = Format.fprintf fmt "process_result{%s}" ""
+let pp_fetch_result fmt (r : fetch_result) =
+  Format.fprintf fmt "fetch_result{page_id=%s, content=\"%s...\"}" r.page_id
+    (String.sub r.content 0 10)
+
+let pp_analyze_result fmt (r : analyze_result) =
+  Format.fprintf fmt
+    "analyze_result{page_id=%s, parsed_content=\"%s...\", children_ids=[%s]}"
+    r.page_id
+    (String.sub (Yojson.Safe.pretty_to_string r.parsed_content) 0 10)
+    (String.concat ~sep:", " r.children_ids)
+
+let pp_convert_result fmt (r : convert_result) =
+  Format.fprintf fmt "convert_result{%s}" ""
+
+let pp_process_result fmt (r : process_result) =
+  Format.fprintf fmt "process_result{%s}" ""
 
 (* Utils for General *)
 let write_to_file body filename =
@@ -424,10 +443,12 @@ and process_content conf page_id body =
 *)
 (* Composed Processing phases implementations *)
 let process_one_page conf page_id : process_result =
-  let fetch_result = fetch_one_page conf page_id in
-  let convert_result = convert_one_page conf page_id in
-  printf "fetch_result = %a. convert_result = %a\n" pp_fetch_result fetch_result
-    pp_convert_result convert_result;
+  let result =
+    fetch_one_page conf page_id
+    |> analyze_one_page conf page_id
+    |> convert_one_page conf page_id
+  in
+  printf "convert_result = %a\n" pp_convert_result result;
   (* TODO: implement. *)
   { page_id }
 
