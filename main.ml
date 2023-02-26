@@ -101,6 +101,8 @@ let build_jekyll_front_matter_string json =
       ("layout", "single");
       ("title", yaml_dbquote title);
       ("date", yaml_dbquote last_updated);
+      ("toc", "true");
+      ("toc_sticky", "true");
     ]
   in
   String.concat ~sep:"\n"
