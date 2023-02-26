@@ -81,6 +81,9 @@ let build_uri_of_page_id conf page_id =
          "?expand=body.view,children.page,history.lastUpdated,version,ancestors,metadata.labels";
        ])
 
+(* Utils for convert phase. *)
+let yaml_dbquote text = "\"" ^ text ^ "\""
+
 let build_jekyll_front_matter_string json =
   (* TODO: Better Error Handling *)
   let open Yojson.Safe.Util in
@@ -97,15 +100,24 @@ let build_jekyll_front_matter_string json =
   let labels =
     List.map label_objs (member "name") |> fun l -> List.map l to_string
   in
-  "---\n" ^ "layout: single\n" ^ "title: \"" ^ title ^ "\"\n" ^ "date: \""
-  ^ last_updated ^ "\"\n"
-  (* Labels are `tags` in Jekyll. *)
-  ^ (match List.hd labels with
-    | Some _ ->
-        printf "labels: %s" (List.hd_exn labels);
-        "tags:\n  - " ^ String.concat ~sep:"\n  - " labels ^ "\n"
-    | None -> "")
-  ^ "---\n"
+  let kv_list =
+    [
+      ("layout", "single");
+      ("title", yaml_dbquote title);
+      ("date", yaml_dbquote last_updated);
+    ]
+  in
+  String.concat ~sep:"\n"
+    (List.concat
+       [
+         [ "---" ];
+         (* general key-values*)
+         List.map kv_list (fun (k, v) -> k ^ ": " ^ v);
+         (* tags as list. Labels are `tags` in Jekyll. *)
+         [ "tags:" ];
+         List.map labels (fun l -> "  - " ^ l);
+         [ "---"; "" ];
+       ])
 
 (* Easy Tools *)
 (* https://github.com/mirage/ocaml-cohttp#dealing-with-redirects *)
