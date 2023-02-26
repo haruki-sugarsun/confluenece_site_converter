@@ -227,7 +227,7 @@ let generate_inner_site_link page_id =
   "/c/" ^ page_id
 
 (* download the file to _CACHE_DIR_/_PAGE_ID_/_FILENAME_ *)
-(* TODO: Consider pack the common parameters into a context record type to simplify. *)
+(* TODO: Consider pack the common parameters (conf and page_id) into a context record type to simplify. *)
 let download_resource conf page_id uri filename =
   (* TODO: Implement *)
   if not conf.use_cache then (
@@ -288,8 +288,15 @@ let img_attr_processor conf page_id node =
       printf "Img src or filename missing.\n";
       ()
 
-(* Entrypoint for a whole `document` processing *)
+let should_keep_attr node attr_name =
+  match (Soup.name node, attr_name) with
+  | _, "id" | "div", "class" -> true
+  | _ -> false
+(* if Poly.(attr_name = "id") then true else false *)
+
+(* Entrypoint for the whole `document` processing *)
 let html_attr_processer conf page_id html_string =
+  (* parsing for processing. Basic strategy is traversing and descructively update the nodes. *)
   let node = Soup.parse html_string in
   printf "before: %s\n" (Soup.pretty_print node);
   Soup.select "*" node
@@ -303,7 +310,7 @@ let html_attr_processer conf page_id html_string =
          | _ ->
              Soup.fold_attributes
                (fun _ k v ->
-                 if Poly.(k = "id") then () else Soup.delete_attribute k n)
+                 if should_keep_attr n k then () else Soup.delete_attribute k n)
                () n);
   (* let processed_node = attr_drop_rec node in *)
   printf " after: %s\n" (Soup.pretty_print node);
