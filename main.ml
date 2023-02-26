@@ -1,14 +1,10 @@
 open Core
-open Printf
 open Format
-open Bool
 open Lwt
 open Cohttp
 open Cohttp_lwt_unix
 open Soup
 open Yojson
-open Core.Command
-open Str
 
 (* Configurations. *)
 type run_mode =
