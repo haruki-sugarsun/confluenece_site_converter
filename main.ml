@@ -292,17 +292,66 @@ let html_attr_processer conf page_id html_string =
 
 (* Fetching phase implementations *)
 let fetch_one_page conf page_id : fetch_result =
-  (* TODO: implement. *)
-  { page_id }
+  printf "fetching one page: %s.\n" page_id;
+  let content =
+    if conf.use_cache then
+      (* TODO: Extract cache file path generation .*)
+      read_from_file (conf.local_cache_dir ^ "/" ^ page_id ^ ".raw")
+    else
+      (* https://github.com/mirage/ocaml-cohttp *)
+      let targetUrl = build_uri_of_page_id conf page_id in
+      let body =
+        Client.get targetUrl >>= fun (resp, body) ->
+        let code = resp |> Response.status |> Code.code_of_status in
+        Printf.eprintf "Response code: %d\n" code;
+        Printf.eprintf "Headers: %s\n"
+          (resp |> Response.headers |> Header.to_string);
+        body |> Cohttp_lwt.Body.to_string >|= fun body ->
+        Printf.eprintf "Body of length: %d\n" (String.length body);
+        body
+      in
+      let body = Lwt_main.run body in
+      (* Save to cache. *)
+      write_to_file body (conf.local_cache_dir ^ "/" ^ page_id ^ ".raw");
+      body
+  in
+  { page_id; content }
+(* TODO: implement. *)
 
 (* Analyzing phase implementations *)
-let analyse_one_page conf page_id : analyze_result =
+let analyze_one_page conf page_id (fetch_result : fetch_result) : analyze_result
+    =
+  printf "analyzing one page: %s.\n" page_id;
+  (* Parse JSON. *)
+  let open Yojson.Safe.Util in
+  (* local open *)
+  let json = Yojson.Safe.from_string fetch_result.content in
+  (* List the children *)
+  let pages = json |> member "children" |> member "page" |> member "results" in
+  (* Printf.printf "children:%s\n" (Yojson.Safe.pretty_to_string pages); *)
+  let children_ids =
+    List.map (to_list pages) (fun p -> p |> member "id" |> to_string)
+  in
   (* TODO: implement. *)
-  { page_id }
+  { page_id; parsed_content = json; children_ids }
 
 (* Converting phase implementations *)
-let convert_one_page conf page_id : convert_result =
+let convert_one_page conf page_id (analyze_result : analyze_result) :
+    convert_result =
   (* TODO: implement. *)
+  let open Yojson.Safe.Util in
+  (* local open *)
+  let body_view =
+    analyze_result.parsed_content |> member "body" |> member "view"
+    |> member "value" |> to_string
+  in
+  let jekyll_front_matter =
+    build_jekyll_front_matter_string analyze_result.parsed_content
+  in
+  write_to_file
+    (jekyll_front_matter ^ html_attr_processer conf page_id body_view)
+    (conf.local_output_dir ^ "/" ^ page_id ^ ".html");
+
   { page_id }
 
 (* (Old) DFS TRAVERSING implementation: process recursively. Fetching all the pages under the root. *)
