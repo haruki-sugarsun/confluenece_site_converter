@@ -31,6 +31,7 @@ type configuration = {
   run_mode : run_mode;
   (* Behavior varibles *)
   sleep_duration_per_fetch : int;
+  (* TODO: We want a cache mode param too. e.g. force_fetch, fetch_if_mod, cache_only*)
   use_cache : bool;
   (* Local filesytem variables *)
   local_cache_dir : string;
@@ -270,6 +271,8 @@ let html_attr_processer conf page_id html_string =
 (* TRAVERSING recursively. Fetching all the pages under the root. *)
 (* TODO: Have the metadata management. *)
 let fetch_page_content conf page_id =
+  (* TODO: Replace with direct usage of fetch_one_page. *)
+  (* let r = fetch_one_page conf page_id in r.content *)
   if conf.use_cache then
     read_from_file (conf.local_cache_dir ^ "/" ^ page_id ^ ".raw")
   else
