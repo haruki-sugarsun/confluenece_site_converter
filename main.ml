@@ -358,13 +358,13 @@ let process_one_page = ()
 *)
 let main config =
   (* TODO: has params as confuguration? *)
-  match config.run_mode with
+  (match config.run_mode with
   | PROCESS_TREE root_id ->
       printf "   *****   START Process Tree mode!\n";
       fetch_pages_tree config config.root_page_id
   | PROCESS_ONE target ->
-      printf "   *****   START Process Tree mode!\n" (* TODO: Implement. *);
-      printf "   *****   FINISHED!\n"
+      printf "   *****   START Process Tree mode!\n" (* TODO: Implement. *));
+  printf "   *****   FINISHED!\n"
 
 (* Re-process the remaining data? *)
 (* TODO: Store the execution metadata? *)
