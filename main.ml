@@ -62,6 +62,7 @@ let basic_auth_pair conf =
   in
   String.concat ~sep:":" [ encoded_user; conf.confluence_password ]
 
+(* TODO: Update to v2. https://developer.atlassian.com/cloud/confluence/rest/v1/api-group-content/#api-wiki-rest-api-content-id-get *)
 (* https://developer.atlassian.com/cloud/confluence/rest/api-group-content/#api-wiki-rest-api-content-id-get *)
 let build_uri_of_page_id conf page_id =
   let user_token_pair_str = basic_auth_pair conf in
@@ -265,6 +266,7 @@ let html_attr_processer conf page_id html_string =
   |> Soup.iter (fun n ->
          (* Consider per type handling? *)
          (* Consider extracting into functions? *)
+         (* TODO: Consider add found pages to the fetching target. *)
          printf "Tag name:%s\n" (Soup.name n);
          match Soup.name n with
          | "a" -> a_attr_processor n
@@ -337,7 +339,7 @@ and process_content conf page_id body =
       let child_page_id = p |> member "id" |> to_string in
       Printf.printf "stepping in to child:%s\n" child_page_id;
       fetch_pages_tree conf child_page_id);
-  () (* XXX *)
+  () (* TODO: Return the additional target to fetch. *)
 
 (*
   TODO: Redefine the steps and implement.
@@ -363,7 +365,7 @@ let main config =
       printf "   *****   START Process Tree mode!\n";
       fetch_pages_tree config config.root_page_id
   | PROCESS_ONE target ->
-      printf "   *****   START Process Tree mode!\n" (* TODO: Implement. *));
+      printf "   *****   START Process One mode!\n" (* TODO: Implement. *));
   printf "   *****   FINISHED!\n"
 
 (* Re-process the remaining data? *)
