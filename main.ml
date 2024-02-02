@@ -87,6 +87,7 @@ let build_uri_of_rest_path conf rest_path =
        user_token_pair_str;
        "@";
        conf.confluence_domain;
+       "/wiki";
        rest_path;
      ])
 
@@ -324,24 +325,32 @@ let fetch_page_content conf page_id =
 let rec fetch_all_children_page_ids_from_content_children conf json_children ids_so_far =
   let open Yojson.Safe.Util in
 
-  let page = json_children |> member "page" in
-  let results_in_page = page |> member "results" in
-  let limit = int_of_string (page |> member "limit" |> to_string) in
-  let size = int_of_string (page |> member "size" |> to_string) in
-  let next_link = page |> member "_links" |> member "next" |> to_string in
-
+  let results_in_page = json_children |> member "results" in
+  let limit =  (json_children |> member "limit" |> to_int) in
+  let size =  (json_children |> member "size" |> to_int) in
   Printf.eprintf "fetch_all_children_page_ids_from_content_children limit: %d\n" limit;
   Printf.eprintf "fetch_all_children_page_ids_from_content_children size: %d\n" size;
+
+  (* next link can be null https://stackoverflow.com/questions/55049732/detect-if-json-object-has-key-with-yojson *)
+  let next_link = match json_children |> member "_links" |> member "next" with
+      | `String str -> str
+      | `Null -> (* Handle null value *)
+        print_endline "Null value detected!"; ""
+      | _ -> (* Handle other JSON types *)
+        print_endline "Unknown JSON type!"; ""
+  in
   Printf.eprintf "fetch_all_children_page_ids_from_content_children next_link: %s\n" next_link;
 
   let results_as_ids = List.map (to_list results_in_page) (fun p -> p |> member "id" |> to_string) in
   let new_ids_so_far = (ids_so_far @ results_as_ids) in
 
-  if size < limit then
+  if (size < limit) || Poly.(next_link = "abc") then
     (* end base case *)
     new_ids_so_far
   else
     let next_link_uri = build_uri_of_rest_path conf next_link in
+    Printf.eprintf "next_link_uri: %s\n" (Uri.to_string next_link_uri);
+
     (* TODO: Abstract/Extract common expressions *)
     let body =
       Client.get next_link_uri >>= fun (resp, http_body) ->
@@ -354,6 +363,8 @@ let rec fetch_all_children_page_ids_from_content_children conf json_children ids
       body
     in
     let body = Lwt_main.run body in
+    Printf.eprintf "next_link result: %s\n" (body);
+
     let next_link_fetch_result = Yojson.Safe.from_string body in
     fetch_all_children_page_ids_from_content_children conf next_link_fetch_result new_ids_so_far
 
@@ -385,12 +396,13 @@ and process_content conf page_id body =
     (conf.local_output_dir ^ "/" ^ page_id ^ ".html");
 
   (* List the children *)
-  let pages = json |> member "children" |> member "page" |> member "results" in
-  Printf.printf "children:%s\n" (Yojson.Safe.pretty_to_string pages);
-  List.iter (to_list pages) (fun p ->
-      let child_page_id = p |> member "id" |> to_string in
-      Printf.printf "stepping in to child:%s\n" child_page_id;
-      fetch_pages_tree conf child_page_id);
+  let all_children_page_ids = fetch_all_children_page_ids_from_content_children conf (json |> member "children" |> member "page") [] in
+  Printf.printf "children page IDs (len = %d):%s\n" (List.length all_children_page_ids) (String.concat ~sep:", " all_children_page_ids);
+  (* Fetch them all *)
+  List.iter all_children_page_ids (fun child_page_id ->
+    Printf.printf "stepping in to child:%s\n" child_page_id;
+      fetch_pages_tree conf child_page_id
+    );
   () (* TODO: Return the additional target to fetch. *)
 
 (*
