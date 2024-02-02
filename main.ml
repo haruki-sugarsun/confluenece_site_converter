@@ -78,6 +78,18 @@ let build_uri_of_page_id conf page_id =
          "?expand=body.view,children.page,history.lastUpdated,version,ancestors,metadata.labels";
        ])
 
+let build_uri_of_rest_path conf rest_path =
+  let user_token_pair_str = basic_auth_pair conf in
+  Uri.of_string
+  (String.concat
+     [
+       "https://";
+       user_token_pair_str;
+       "@";
+       conf.confluence_domain;
+       rest_path;
+     ])
+
 (* Utils for convert phase. *)
 let yaml_dbquote text = "\"" ^ text ^ "\""
 
@@ -304,6 +316,46 @@ let fetch_page_content conf page_id =
     (* We can eagarly parse it here? *)
     write_to_file body (conf.local_cache_dir ^ "/" ^ page_id ^ ".raw");
     body
+
+(* API result JSON Utils *)
+(* Input JSON type: ContentChildren
+   https://developer.atlassian.com/cloud/confluence/rest/v1/api-group-content---children-and-descendants/#api-wiki-rest-api-content-id-child-get *)
+(* Known issue: We are not cacheing result of fetching children page IDs. *)
+let rec fetch_all_children_page_ids_from_content_children conf json_children ids_so_far =
+  let open Yojson.Safe.Util in
+
+  let page = json_children |> member "page" in
+  let results_in_page = page |> member "results" in
+  let limit = int_of_string (page |> member "limit" |> to_string) in
+  let size = int_of_string (page |> member "size" |> to_string) in
+  let next_link = page |> member "_links" |> member "next" |> to_string in
+
+  Printf.eprintf "fetch_all_children_page_ids_from_content_children limit: %d\n" limit;
+  Printf.eprintf "fetch_all_children_page_ids_from_content_children size: %d\n" size;
+  Printf.eprintf "fetch_all_children_page_ids_from_content_children next_link: %s\n" next_link;
+
+  let results_as_ids = List.map (to_list results_in_page) (fun p -> p |> member "id" |> to_string) in
+  let new_ids_so_far = (ids_so_far @ results_as_ids) in
+
+  if size < limit then
+    (* end base case *)
+    new_ids_so_far
+  else
+    let next_link_uri = build_uri_of_rest_path conf next_link in
+    (* TODO: Abstract/Extract common expressions *)
+    let body =
+      Client.get next_link_uri >>= fun (resp, http_body) ->
+      let code = resp |> Response.status |> Code.code_of_status in
+      Printf.eprintf "Response code: %d\n" code;
+      Printf.eprintf "Headers: %s\n"
+        (resp |> Response.headers |> Header.to_string);
+      http_body |> Cohttp_lwt.Body.to_string >|= fun body ->
+      Printf.eprintf "Body of length: %d\n" (String.length body);
+      body
+    in
+    let body = Lwt_main.run body in
+    let next_link_fetch_result = Yojson.Safe.from_string body in
+    fetch_all_children_page_ids_from_content_children conf next_link_fetch_result new_ids_so_far
 
 let rec fetch_pages_tree conf page_id =
   print_endline
