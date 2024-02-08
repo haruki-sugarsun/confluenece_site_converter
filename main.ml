@@ -207,7 +207,7 @@ let simple_html_attr_dropper html_string =
 
 let generate_inner_site_link page_id =
   (* TODO: Implement when we implement URL generation with title. *)
-  "/c/" ^ page_id
+  "/c/" ^ page_id ^ "/"
 
 (* download the file to _CACHE_DIR_/_PAGE_ID_/_FILENAME_ *)
 (* TODO: Consider pack the common parameters into a context record type to simplify. *)
