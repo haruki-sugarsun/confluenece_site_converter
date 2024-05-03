@@ -21,10 +21,13 @@ type configuration = {
   confluence_domain : string;
   confluence_user : string;
   confluence_password : string;
+  (* space ID for v2 endpoint. Note that it's different from space KEY. *)
+  space_id : string;
   (* Replace or Implement environment variable support. *)
   (* Page structure variables *)
   root_page_id : string; (* TODO: Deprecate in favor of `run_mode`. *)
   run_mode : run_mode;
+  incremental : bool;
   (* Behavior varibles *)
   sleep_duration_per_fetch : int;
   (* TODO: We want a cache mode param too. e.g. force_fetch, fetch_if_mod, cache_only*)
@@ -89,6 +92,25 @@ let build_uri_of_rest_path conf rest_path =
          conf.confluence_domain;
          "/wiki";
          rest_path;
+       ])
+
+(* Get pages in space by recent modified.
+   https://developer.atlassian.com/cloud/confluence/rest/v2/api-group-page/#api-spaces-id-pages-get
+   -modified-date gives the newly editted pages.
+*)
+let build_uri_of_v2_pages_in_space conf =
+  let user_token_pair_str = basic_auth_pair conf in
+  let space_id = conf.space_id in
+  Uri.of_string
+    (String.concat
+       [
+         "https://";
+         user_token_pair_str;
+         "@";
+         conf.confluence_domain;
+         "/wiki/api/v2/spaces/";
+         space_id;
+         "/pages?sort=-modified-date";
        ])
 
 (* Utils for convert phase. *)
@@ -177,6 +199,21 @@ and handle_redirect ~permanent ~max_redirects request_uri response =
           Lwt.return_unit
         in
         http_get_and_follow uri ~max_redirects:(max_redirects - 1)
+
+(* Util to fetch as JSON *)
+let fetch_as_json uri =
+  Printf.eprintf "Fetching as JSON: %s\n" (Uri.to_string uri);
+  let body =
+    http_get_and_follow ~max_redirects:1 uri >>= fun (resp, body) ->
+    let code = resp |> Response.status |> Code.code_of_status in
+    Printf.eprintf "Response code: %d\n" code;
+    Printf.eprintf "Headers: %s\n" (resp |> Response.headers |> Header.to_string);
+    body |> Cohttp_lwt.Body.to_string >|= fun body ->
+    Printf.eprintf "Body of length: %d\n" (String.length body);
+    body
+  in
+  let body = Lwt_main.run body in
+  Yojson.Safe.from_string body
 
 (* HTML processing *)
 let simple_html_trimmer html_string =
@@ -446,7 +483,21 @@ let main config =
       printf "   *****   START Process Tree mode!\n";
       fetch_pages_tree config config.root_page_id
   | PROCESS_ONE target ->
-      printf "   *****   START Process One mode!\n" (* TODO: Implement. *));
+      printf "   *****   START Process One mode! TODO: Implement!! \n"
+      (* TODO: Implement. *));
+      let initial_uri = build_uri_of_v2_pages_in_space config in
+      printf "abc, %s" (Uri.to_string initial_uri);
+      (* TODO: Encapsulate the page fetching to a state machine *)
+      let check_pages_loop uri =
+        let result = fetch_as_json uri in
+        
+
+
+
+
+
+
+  (* XXX *)
   printf "   *****   FINISHED!\n"
 
 (* Re-process the remaining data? *)
@@ -459,6 +510,8 @@ let () =
       and confluence_user = flag ~doc:"user" "--user" (required string)
       and confluence_password =
         flag ~doc:"password" "--password" (required string)
+      and space_id =
+        flag ~doc:"Space ID of the target pages" "--space-id" (required string)
       and root_page_id =
         flag ~doc:"Page ID of the root" "--root-page-id" (required string)
       and process_one_target_id =
@@ -466,6 +519,9 @@ let () =
       and sleep_duration_per_fetch =
         flag ~doc:"TODO: write" "--sleep" (required int)
       and use_cache = flag ~doc:"TODO: write" "--cache" (required bool)
+      and incremental =
+        flag ~doc:"Run in incremental mode. It first searched for "
+          "--incremental" (required bool)
       and local_cache_dir =
         flag ~doc:"TODO: write" "--cache-dir" (required string)
       and local_output_dir =
@@ -484,8 +540,10 @@ let () =
             confluence_domain : string;
             confluence_user : string;
             confluence_password : string;
+            space_id : string;
             root_page_id : string;
             run_mode : run_mode;
+            incremental : bool;
             sleep_duration_per_fetch : int;
             use_cache : bool;
             local_cache_dir : string;
@@ -497,9 +555,11 @@ let () =
         printf "Confluence Site Converter starting with the config: {\n";
         printf "  confluence_user: %s\n" c.confluence_user;
         printf "  confluence_password: *** (masked)\n";
+        printf "  space_id: %s\n" c.space_id;
         printf "  root_page_id: %s\n" c.root_page_id;
         printf "  sleep_duration_per_fetch: %d\n" c.sleep_duration_per_fetch;
         printf "  run_mode: %a\n" pp_run_mode c.run_mode;
+        printf "  incremental: %b\n" c.incremental;
         printf "  use_cache: %b\n" c.use_cache;
         printf "  local_cache_dir: %s\n" c.local_cache_dir;
         printf "  local_output_dir: %s\n" c.local_output_dir;
