@@ -3,8 +3,8 @@ Confluence Site Converter
 
 # Environment
 (confirmed on 2024-02-01)
-- OCaml 4.14.1
-  - with https://opam.ocaml.org/doc/Usage.html#opam-switch `opam switch create 4.14.1`
+- OCaml 4.14.2
+  - with https://opam.ocaml.org/doc/Usage.html#opam-switch `opam switch create 4.14.2`
   - We have some dependencies in libraries to the older version of OCaml and specific old lib version.
 - Core v0.14.1
   - v0.14 → v0.15 splitted the modules
@@ -13,8 +13,8 @@ Confluence Site Converter
 
 # Setup
 ```
-$ opam switch create 4.14.1
-$ eval $(opam env --switch=4.14.1)
+$ opam switch create 4.14.2
+$ eval $(opam env --switch=4.14.2)
 ```
 
 Maybe required in some environment (for me WSL2 Debian with brew)
