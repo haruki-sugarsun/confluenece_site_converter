@@ -1,0 +1,4 @@
+(executable
+ (public_name confluence_site_converter)
+ (name main)
+ (libraries confluence_site_converter))
