@@ -1,2 +1,3 @@
 (library
- (name confluence_site_converter))
+ (name confluence_site_converter)
+ (libraries core))
