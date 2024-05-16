@@ -2,7 +2,11 @@
  (public_name confluence_site_converter)
  (name main)
  (modules main)
- (libraries confluence_site_converter lwt.unix core core_unix.command_unix)
+ (libraries confluence_site_converter
+            lwt.unix
+            core
+            core_unix.command_unix
+            core_unix.filename_unix)
  (preprocess (pps ppx_jane)))
 
 (executable
