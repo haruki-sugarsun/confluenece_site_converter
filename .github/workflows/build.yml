@@ -31,7 +31,7 @@ jobs:
         with:
           # Version of the OCaml compiler to initialise
           ocaml-compiler:  4.14.1
-      - run: opam install --yes ocamlfind core.v0.14.1 cohttp-lwt-unix cohttp-async lambdasoup yojson lwt_ssl
+      - run: opam install --yes ocamlfind core.v0.14.1 cohttp-lwt-unix lambdasoup yojson lwt_ssl
 
       # BUILD
       - name: build
