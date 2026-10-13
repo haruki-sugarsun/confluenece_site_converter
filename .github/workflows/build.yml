@@ -18,12 +18,12 @@ jobs:
   # This workflow contains a single job called "build"
   build:
     # The type of runner that the job will run on
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       # SETUP
       - name: Set up OCaml
@@ -31,7 +31,7 @@ jobs:
         with:
           # Version of the OCaml compiler to initialise
           ocaml-compiler:  4.14.1
-      - run: opam install --yes ocamlfind core.v0.14.1 cohttp-lwt-unix cohttp-async lambdasoup yojson lwt_ssl
+      - run: opam install --yes ocamlfind core.v0.14.1 cohttp-lwt-unix lambdasoup yojson lwt_ssl
 
       # BUILD
       - name: build
@@ -40,7 +40,7 @@ jobs:
           make
 
       # Upload the last artifact.
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: latest-executable
           path: |
